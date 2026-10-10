@@ -3,6 +3,27 @@ import uuid
 from django.conf import settings
 from apps.services.models import Service
 from apps.locations.models import City, Zone
+from apps.professionals.models import ProfessionalProfile
+from apps.bookings.models import Booking
+
+class ProfessionalTimeSlot(models.Model):
+    """
+    Prevents double-booking by locking a professional's calendar for a specific job duration.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    professional = models.ForeignKey(ProfessionalProfile, on_delete=models.CASCADE, related_name='time_slots')
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='locked_slots', null=True, blank=True)
+    
+    date = models.DateField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    
+    # STATUS: 'LOCKED_FOR_JOB', 'UNAVAILABLE_PERSONAL', 'BUFFER_TIME'
+    status = models.CharField(max_length=30, default='LOCKED_FOR_JOB')
+    
+    class Meta:
+        db_table = 'professional_time_slots'
+        unique_together = ('professional', 'date', 'start_time')
 
 class BookingSlot(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

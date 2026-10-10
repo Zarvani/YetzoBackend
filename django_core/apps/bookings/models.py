@@ -41,6 +41,10 @@ class Booking(models.Model):
     # Location
     address = models.ForeignKey(Address, on_delete=models.PROTECT)
     
+    # Fraud Prevention (Job Start/End Verification)
+    start_otp = models.CharField(max_length=4, blank=True, null=True, help_text="4-digit OTP customer must provide to pro to start job")
+    end_otp = models.CharField(max_length=4, blank=True, null=True, help_text="4-digit OTP to finalize the job")
+    
     # Pricing snapshot (stored in paise)
     base_price = models.BigIntegerField(default=0)
     addons_price = models.BigIntegerField(default=0)

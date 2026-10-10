@@ -23,6 +23,24 @@ import dj_database_url
 # Load environment variables from .env file
 load_dotenv(BASE_DIR.parent / '.env')
 
+import glob
+# Add GDAL and GEOS paths from rasterio and shapely wheels on Windows
+if os.name == 'nt':
+    import sys
+    site_packages = os.path.join(sys.prefix, 'Lib', 'site-packages')
+    gdal_pattern = os.path.join(site_packages, 'rasterio.libs', 'gdal*.dll')
+    geos_pattern = os.path.join(site_packages, 'shapely.libs', 'geos_c*.dll')
+    
+    gdal_matches = glob.glob(gdal_pattern)
+    geos_matches = glob.glob(geos_pattern)
+    
+    if gdal_matches:
+        os.environ['GDAL_LIBRARY_PATH'] = gdal_matches[0]
+        GDAL_LIBRARY_PATH = gdal_matches[0]
+    if geos_matches:
+        os.environ['GEOS_LIBRARY_PATH'] = geos_matches[0]
+        GEOS_LIBRARY_PATH = geos_matches[0]
+
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('SECRET_KEY', 'unsafe-default-secret-key-do-not-use-in-prod')
 
@@ -45,6 +63,10 @@ INSTALLED_APPS = [
     'channels',
     'django.contrib.admin',
     'django.contrib.auth',
+    'django.contrib.gis',
+    'django_elasticsearch_dsl',
+    'cloudinary_storage',
+    'cloudinary',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
@@ -157,8 +179,8 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
-
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -202,4 +224,21 @@ CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
+
+# Elasticsearch Configuration
+ELASTICSEARCH_DSL = {
+    'default': {
+        'hosts': os.environ.get('ELASTICSEARCH_URL', 'http://localhost:9200'),
+    },
+}
+
+# Cloudinary Integration
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME', ''),
+    'API_KEY': os.environ.get('CLOUDINARY_API_KEY', ''),
+    'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET', ''),
+}
+
+if os.environ.get('CLOUDINARY_CLOUD_NAME'):
+    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 

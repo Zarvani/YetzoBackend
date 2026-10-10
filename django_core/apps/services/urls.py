@@ -3,10 +3,12 @@ from .views import (
     CategoryListView, CategoryDetailView, 
     ServiceListView, ServiceDetailView,
     ServiceQuestionsView, CheckServiceabilityView,
-    AdminServiceListCreateView, AdminServiceDetailView
+    AdminServiceListCreateView, AdminServiceDetailView,
+    SystemPingView
 )
 
 urlpatterns = [
+    path('system/ping/', SystemPingView.as_view(), name='system-ping'),
     path('categories/', CategoryListView.as_view(), name='category-list'),
     path('categories/<slug:slug>/', CategoryDetailView.as_view(), name='category-detail'),
     path('services/', ServiceListView.as_view(), name='service-list'),

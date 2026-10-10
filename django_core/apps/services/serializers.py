@@ -3,6 +3,7 @@ from .models import (
     Category, Subcategory, Service, ServiceVariant,
     ServiceAddon, ServiceQuestion, ServiceQuestionOption
 )
+from apps.pricing.serializers import ServicePricingRuleSerializer
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -47,6 +48,7 @@ class ServiceSerializer(serializers.ModelSerializer):
     subcategory = SubcategorySerializer(read_only=True)
     variants = ServiceVariantSerializer(many=True, read_only=True)
     addons = ServiceAddonSerializer(many=True, read_only=True)
+    pricing_rules = ServicePricingRuleSerializer(many=True, read_only=True)
     
     class Meta:
         model = Service

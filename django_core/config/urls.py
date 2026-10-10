@@ -17,4 +17,8 @@ urlpatterns = [
     path('api/v1/finance/', include('apps.finance.urls')),
     path('api/v1/fraud/', include('apps.fraud.urls')),
     path('api/v1/users/', include('apps.users.urls')),
+    path('api/v1/pricing/', include('apps.pricing.urls')),
+    path('api/v1/carts/', include('apps.carts.urls')),
+    path('api/v1/admin-core/', include('apps.admin_core.urls')),
+    path('api/v1/cms/', include('apps.cms.urls')),
 ]

@@ -89,3 +89,21 @@ class WalletTransaction(models.Model):
     class Meta:
         db_table = 'wallet_transactions'
         ordering = ['-created_at']
+
+class EscrowLedger(models.Model):
+    """
+    Holds funds paid by the customer securely until the job is completed.
+    Once completed, funds are split to the platform and the professional's wallet.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    booking = models.OneToOneField(Booking, on_delete=models.CASCADE, related_name='escrow')
+    payment = models.ForeignKey(Payment, on_delete=models.CASCADE, related_name='escrows', null=True, blank=True)
+    
+    amount_held = models.BigIntegerField()
+    status = models.CharField(max_length=30, choices=(('HELD', 'Held'), ('RELEASED', 'Released'), ('REFUNDED', 'Refunded')), default='HELD')
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'escrow_ledgers'

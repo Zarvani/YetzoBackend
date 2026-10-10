@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from websockets.dispatch import router as dispatch_router
-from websockets.tracking import router as tracking_router
-from websockets.chat import router as chat_router
+from ws_handlers.dispatch import router as dispatch_router
+from ws_handlers.tracking import router as tracking_router
+from ws_handlers.chat import router as chat_router
 
 app = FastAPI(
     title="YETZO Realtime Engine",

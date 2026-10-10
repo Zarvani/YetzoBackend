@@ -9,6 +9,12 @@ from .serializers import (
 )
 from apps.locations.models import City, Zone
 from rest_framework.permissions import IsAuthenticated
+from .documents import ServiceDocument
+
+class SystemPingView(APIView):
+    permission_classes = [AllowAny]
+    def get(self, request):
+        return Response({"status": "ok", "message": "YETZO Core Systems Online", "version": "1.0.0"})
 
 class AdminServiceListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
@@ -47,10 +53,26 @@ class ServiceListView(generics.ListAPIView):
     serializer_class = ServiceSerializer
     
     def get_queryset(self):
-        queryset = Service.objects.exclude(status='ARCHIVED')
+        query = self.request.query_params.get('q', None)
         category_slug = self.request.query_params.get('category', None)
+        
+        if query:
+            # Route to Elasticsearch Fuzzy AI Search Engine
+            search = ServiceDocument.search().query(
+                "multi_match", 
+                query=query, 
+                fields=['name^3', 'description', 'category_name^2'], 
+                fuzziness='AUTO'
+            )
+            # Convert elasticsearch Results to standard Django QuerySet for the serializer
+            queryset = search.to_queryset().exclude(status='ARCHIVED')
+        else:
+            # Fallback to standard DB if no search term provided
+            queryset = Service.objects.exclude(status='ARCHIVED')
+            
         if category_slug:
             queryset = queryset.filter(category__slug=category_slug)
+            
         return queryset
 
 class ServiceDetailView(generics.RetrieveAPIView):
