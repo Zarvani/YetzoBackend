@@ -38,11 +38,8 @@ class TrackingConsumer(AsyncWebsocketConsumer):
 
     # Receive message from room group
     async def location_update(self, event):
-        latitude = event['latitude']
-        longitude = event['longitude']
+        await self.send(text_data=json.dumps(event))
 
-        # Send message to WebSocket
-        await self.send(text_data=json.dumps({
-            'latitude': latitude,
-            'longitude': longitude
-        }))
+    async def status_update(self, event):
+        await self.send(text_data=json.dumps(event))
+

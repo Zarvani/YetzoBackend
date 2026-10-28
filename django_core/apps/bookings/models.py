@@ -37,6 +37,8 @@ class Booking(models.Model):
     scheduled_date = models.DateField(null=True, blank=True)
     scheduled_time = models.TimeField(null=True, blank=True)
     is_instant = models.BooleanField(default=False)
+    is_verified_session = models.BooleanField(default=False, help_text="Yetzo/Pronto Verified: Encrypted bodycam session recording")
+    cancellation_reason = models.TextField(blank=True, null=True)
     
     # Location
     address = models.ForeignKey(Address, on_delete=models.PROTECT)
@@ -61,6 +63,12 @@ class Booking(models.Model):
     
     class Meta:
         db_table = 'bookings'
+        indexes = [
+            models.Index(fields=['customer', 'status']),
+            models.Index(fields=['assigned_professional', 'status']),
+            models.Index(fields=['status', 'is_instant']),
+            models.Index(fields=['created_at']),
+        ]
 
     def __str__(self):
         return f"{self.booking_reference} - {self.customer.email}"

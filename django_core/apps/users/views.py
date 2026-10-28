@@ -1,9 +1,26 @@
+from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework import status
-from .models import UserDevice
+from .models import UserDevice, Role, User
+from .serializers import RoleSerializer, UserAdminSerializer
 import uuid
+
+class RoleListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = RoleSerializer
+    queryset = Role.objects.all().order_by('name')
+
+class RoleDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = RoleSerializer
+    queryset = Role.objects.all()
+    lookup_field = 'id'
+
+class UserAdminListView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserAdminSerializer
+    queryset = User.objects.all().order_by('-date_joined')
 
 class UpdateFCMTokenView(APIView):
     permission_classes = [IsAuthenticated]
@@ -30,3 +47,4 @@ class UpdateFCMTokenView(APIView):
         )
         
         return Response({"success": True, "message": "FCM token registered successfully"})
+
