@@ -124,14 +124,21 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
 
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [os.environ.get('REDIS_URL', 'redis://localhost:6379/1')],
+if os.environ.get('USE_REDIS_CHANNELS', 'False').lower() == 'true':
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [os.environ.get('REDIS_URL', 'redis://localhost:6379/1')],
+            },
         },
-    },
-}
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer"
+        }
+    }
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
@@ -231,6 +238,7 @@ ELASTICSEARCH_DSL = {
         'hosts': os.environ.get('ELASTICSEARCH_URL', 'http://localhost:9200'),
     },
 }
+ELASTICSEARCH_DSL_AUTOSYNC = os.environ.get('ELASTICSEARCH_AUTOSYNC', 'False').lower() == 'true'
 
 # Cloudinary Integration
 CLOUDINARY_STORAGE = {

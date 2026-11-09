@@ -2,7 +2,7 @@ from django.test import TestCase, TransactionTestCase
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from apps.bookings.models import Booking
-from apps.services.models import Service, ServiceCategory
+from apps.services.models import Service, Category
 from apps.locations.models import Address
 import threading
 import time
@@ -13,24 +13,24 @@ class BookingAtomicityTests(TransactionTestCase):
     def setUp(self):
         self.user = User.objects.create_user(
             email="test@yetzo.com",
-            phone_number="+919999999999",
+            phone="+919999999999",
             password="password"
         )
-        self.category = ServiceCategory.objects.create(name="Cleaning", slug="cleaning")
+        self.category = Category.objects.create(name="Cleaning", slug="cleaning")
         self.service = Service.objects.create(
             category=self.category,
             name="Deep Cleaning",
             slug="deep-cleaning",
-            base_price=100000, # 1000 INR
-            estimated_duration=120
+            starting_price=1000,
+            estimated_duration_minutes=120
         )
         self.address = Address.objects.create(
             user=self.user,
-            full_address="123 Test St",
+            house_flat="Flat 101",
+            street="123 Test St",
             city="Testville",
-            postal_code="123456",
-            latitude=12.9716,
-            longitude=77.5946
+            state="Karnataka",
+            pincode="123456"
         )
 
     def test_booking_status_race_condition(self):

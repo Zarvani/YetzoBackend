@@ -3,7 +3,7 @@ from rest_framework.test import APITestCase
 from rest_framework import status
 from django.contrib.auth import get_user_model
 from apps.bookings.models import Booking
-from apps.services.models import Service, ServiceCategory
+from apps.services.models import Service, Category
 from apps.locations.models import Address
 from apps.payments.models import Payment
 import json
@@ -14,24 +14,24 @@ class RazorpayWebhookIdempotencyTests(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(
             email="test2@yetzo.com",
-            phone_number="+919999999998",
+            phone="+919999999998",
             password="password"
         )
-        self.category = ServiceCategory.objects.create(name="Cleaning", slug="cleaning")
+        self.category = Category.objects.create(name="Cleaning", slug="cleaning")
         self.service = Service.objects.create(
             category=self.category,
             name="Deep Cleaning",
             slug="deep-cleaning",
-            base_price=100000, 
-            estimated_duration=120
+            starting_price=1000, 
+            estimated_duration_minutes=120
         )
         self.address = Address.objects.create(
             user=self.user,
-            full_address="123 Test St",
+            house_flat="Flat 101",
+            street="123 Test St",
             city="Testville",
-            postal_code="123456",
-            latitude=12.9716,
-            longitude=77.5946
+            state="Karnataka",
+            pincode="123456"
         )
         self.booking = Booking.objects.create(
             booking_reference="YZ-TEST-PAY",
@@ -45,9 +45,8 @@ class RazorpayWebhookIdempotencyTests(APITestCase):
             booking=self.booking,
             user=self.user,
             amount=100000,
-            provider='RAZORPAY',
             provider_order_id='order_test123',
-            status='PENDING'
+            status='INITIATED'
         )
         self.webhook_url = '/api/v1/payments/webhook/'
 

@@ -57,15 +57,20 @@ class ServiceListView(generics.ListAPIView):
         category_slug = self.request.query_params.get('category', None)
         
         if query:
-            # Route to Elasticsearch Fuzzy AI Search Engine
-            search = ServiceDocument.search().query(
-                "multi_match", 
-                query=query, 
-                fields=['name^3', 'description', 'category_name^2'], 
-                fuzziness='AUTO'
-            )
-            # Convert elasticsearch Results to standard Django QuerySet for the serializer
-            queryset = search.to_queryset().exclude(status='ARCHIVED')
+            # Route to Elasticsearch Fuzzy AI Search Engine with resilient DB fallback
+            try:
+                search = ServiceDocument.search().query(
+                    "multi_match", 
+                    query=query, 
+                    fields=['name^3', 'description', 'category_name^2'], 
+                    fuzziness='AUTO'
+                )
+                queryset = search.to_queryset().exclude(status='ARCHIVED')
+            except Exception:
+                from django.db.models import Q
+                queryset = Service.objects.filter(
+                    Q(name__icontains=query) | Q(description__icontains=query)
+                ).exclude(status='ARCHIVED')
         else:
             # Fallback to standard DB if no search term provided
             queryset = Service.objects.exclude(status='ARCHIVED')

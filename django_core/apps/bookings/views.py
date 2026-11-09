@@ -1,7 +1,10 @@
 import uuid
 import random
 import string
+import logging
 from django.db import transaction
+
+logger = logging.getLogger(__name__)
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -29,7 +32,7 @@ class BookingListCreateView(APIView):
         if request.user.role and request.user.role.name in ['ADMIN', 'DISPATCHER']:
             bookings = Booking.objects.all().order_by('-created_at')
         elif request.user.role and request.user.role.name == 'PROFESSIONAL':
-            bookings = Booking.objects.filter(professional=request.user).order_by('-created_at')
+            bookings = Booking.objects.filter(assigned_professional__user=request.user).order_by('-created_at')
         else:
             bookings = Booking.objects.filter(customer=request.user).order_by('-created_at')
         serializer = BookingSerializer(bookings, many=True)
@@ -55,15 +58,23 @@ class BookingListCreateView(APIView):
                 
                 # Dynamic Pricing Engine Calculation
                 # 1. Get Base Price for the specific city/service
-                pricing_rule = ServicePricingRule.objects.filter(service=service, city=address.city, is_active=True).first()
+                from apps.locations.models import City
+                city_obj = City.objects.filter(name__iexact=address.city).first() if address.city else None
+                if not city_obj and address.area and address.area.zone:
+                    city_obj = address.area.zone.city
+                
+                pricing_rule = None
+                if city_obj:
+                    pricing_rule = ServicePricingRule.objects.filter(service=service, city=city_obj, is_active=True).first()
                 if not pricing_rule:
-                    # Fallback to generic pricing rule if city-specific doesn't exist
                     pricing_rule = ServicePricingRule.objects.filter(service=service, city__isnull=True, is_active=True).first()
                 
-                if not pricing_rule:
-                    return Response({"success": False, "error": "Pricing not configured for this service."}, status=status.HTTP_400_BAD_REQUEST)
-                
-                base_price = float(pricing_rule.base_price)
+                if pricing_rule:
+                    base_price = float(pricing_rule.base_price)
+                elif service.starting_price:
+                    base_price = float(service.starting_price)
+                else:
+                    base_price = 199.00
                 
                 # Dynamically calculate addons/items loop
                 items_data = data.get('items', [])
@@ -183,8 +194,37 @@ class BookingStatusUpdateView(APIView):
             new_status = serializer.validated_data['new_status']
             old_status = booking.status
             
+            # Partner Declining Offer / Automatic Sequencing to Next Pro
+            if new_status in ['REJECTED', 'CANCELLED', 'TIMEOUT'] and old_status == 'ASSIGNED' and booking.assigned_professional and booking.assigned_professional.user == request.user:
+                from apps.bookings.models import BookingAssignment
+                assign_status = 'TIMEOUT' if new_status == 'TIMEOUT' else 'REJECTED'
+                BookingAssignment.objects.filter(booking=booking, professional=booking.assigned_professional).update(status=assign_status)
+                booking.assigned_professional.current_status = 'ONLINE'
+                booking.assigned_professional.save(update_fields=['current_status', 'updated_at'])
+                booking.assigned_professional = None
+                new_status = 'SEARCHING'
+            
+            # Manual Admin / Dispatcher Override Assignment
+            elif new_status == 'ASSIGNED' and request.data.get('professional_id'):
+                pro_id = request.data.get('professional_id')
+                from apps.professionals.models import ProfessionalProfile
+                try:
+                    target_pro = ProfessionalProfile.objects.select_for_update().get(id=pro_id)
+                    booking.assigned_professional = target_pro
+                    target_pro.current_status = 'BUSY'
+                    target_pro.save(update_fields=['current_status', 'updated_at'])
+                    
+                    from apps.bookings.models import BookingAssignment
+                    BookingAssignment.objects.update_or_create(
+                        booking=booking,
+                        professional=target_pro,
+                        defaults={'status': 'PENDING'}
+                    )
+                except ProfessionalProfile.DoesNotExist:
+                    return Response({"success": False, "error": "Selected professional not found."}, status=status.HTTP_404_NOT_FOUND)
+            
             # Cancellation Penalty Logic
-            if new_status == 'CANCELLED' and old_status in ['CONFIRMED', 'ASSIGNED', 'IN_PROGRESS']:
+            elif new_status == 'CANCELLED' and old_status in ['CONFIRMED', 'ASSIGNED', 'IN_PROGRESS']:
                 if booking.scheduled_date and booking.scheduled_time:
                     booking_dt = datetime.datetime.combine(booking.scheduled_date, booking.scheduled_time)
                     booking_dt = timezone.make_aware(booking_dt)
@@ -231,17 +271,23 @@ class BookingStatusUpdateView(APIView):
             booking.status = new_status
             booking.save()
             
-            # Calendar Locking Logic
+            # Calendar Locking & Assignment Acceptance Logic
             if new_status == 'ACCEPTED' and booking.assigned_professional:
+                from apps.bookings.models import BookingAssignment
+                BookingAssignment.objects.filter(booking=booking, professional=booking.assigned_professional).update(status='ACCEPTED')
                 from apps.scheduling.models import ProfessionalTimeSlot
-                end_time = (datetime.datetime.combine(datetime.date.today(), booking.scheduled_time) + datetime.timedelta(hours=2)).time()
-                ProfessionalTimeSlot.objects.create(
+                sched_date = booking.scheduled_date or datetime.date.today()
+                sched_time = booking.scheduled_time or datetime.time(10, 0)
+                end_time = (datetime.datetime.combine(sched_date, sched_time) + datetime.timedelta(hours=2)).time()
+                ProfessionalTimeSlot.objects.get_or_create(
                     professional=booking.assigned_professional,
-                    booking=booking,
-                    date=booking.scheduled_date,
-                    start_time=booking.scheduled_time,
-                    end_time=end_time,
-                    status='LOCKED_FOR_JOB'
+                    date=sched_date,
+                    start_time=sched_time,
+                    defaults={
+                        'booking': booking,
+                        'end_time': end_time,
+                        'status': 'LOCKED_FOR_JOB'
+                    }
                 )
             
             BookingStatusHistory.objects.create(
@@ -252,8 +298,12 @@ class BookingStatusUpdateView(APIView):
                 reason=serializer.validated_data.get('reason', '')
             )
             
-        # If transitioning to SEARCHING, trigger matching engine asynchronously outside transaction block
+        # If transitioning to SEARCHING, trigger matching engine outside transaction block
         if new_status == 'SEARCHING':
-            dispatch_booking_to_professionals.delay(booking.id)
+            try:
+                dispatch_booking_to_professionals.delay(booking.id)
+            except Exception as e:
+                logger.warning(f"Celery dispatch task enqueue failed ({e}), executing synchronously fallback.")
+                dispatch_booking_to_professionals(booking.id)
             
         return Response({"success": True, "data": {"status": new_status}})

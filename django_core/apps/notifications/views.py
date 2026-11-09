@@ -69,8 +69,8 @@ class InternalSendNotificationView(APIView):
         
         # Trigger FCM Push
         if channel in ['PUSH', 'IN_APP'] and firebase_admin._apps:
-            # Assuming user profile has a stored fcm_token
-            fcm_token = getattr(user, 'fcm_token', None)
+            device = user.devices.filter(is_active=True).exclude(fcm_token__isnull=True).exclude(fcm_token='').first()
+            fcm_token = device.fcm_token if device else None
             if fcm_token:
                 message = messaging.Message(
                     notification=messaging.Notification(

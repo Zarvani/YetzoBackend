@@ -146,8 +146,10 @@ class CartViewSet(viewsets.ModelViewSet):
             cart.items.all().delete()
             recalculate_cart(cart)
 
-            # If instant booking, trigger candidate dispatch immediately
+            # If instant booking, transition to SEARCHING and trigger candidate dispatch immediately
             if is_instant:
+                booking.status = 'SEARCHING'
+                booking.save(update_fields=['status'])
                 dispatch_booking_to_professionals.delay(booking.id)
 
             return Response({

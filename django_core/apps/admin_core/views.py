@@ -10,10 +10,16 @@ from .serializers import (
     UserMembershipSerializer
 )
 
+class IsAdminOrReadOnly(permissions.BasePermission):
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        return bool(request.user and request.user.is_authenticated and (request.user.is_staff or (request.user.role and request.user.role.name in ['ADMIN', 'SUPER_ADMIN'])))
+
 class CouponViewSet(viewsets.ModelViewSet):
     queryset = Coupon.objects.all()
     serializer_class = CouponSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAdminOrReadOnly]
 
     @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def apply(self, request):
@@ -39,4 +45,4 @@ class CouponViewSet(viewsets.ModelViewSet):
 class MembershipPlanViewSet(viewsets.ModelViewSet):
     queryset = MembershipPlan.objects.all()
     serializer_class = MembershipPlanSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAdminOrReadOnly]

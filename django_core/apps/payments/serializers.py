@@ -9,10 +9,20 @@ class PaymentSerializer(serializers.ModelSerializer):
 
 
 class RefundSerializer(serializers.ModelSerializer):
+    booking = serializers.SerializerMethodField()
+
     class Meta:
         model = Refund
         fields = '__all__'
         read_only_fields = ('status', 'provider_refund_id')
+
+    def get_booking(self, obj):
+        if obj.payment and obj.payment.booking:
+            return {
+                'id': str(obj.payment.booking.id),
+                'booking_number': str(obj.payment.booking.id)[:8].upper()
+            }
+        return None
 
 
 class WalletTransactionSerializer(serializers.ModelSerializer):

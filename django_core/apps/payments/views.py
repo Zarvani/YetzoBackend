@@ -7,7 +7,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import Payment, Refund, Wallet, WalletTransaction
 from apps.bookings.models import Booking
 from .serializers import (
-    PaymentSerializer, WalletSerializer, WalletTransactionSerializer
+    PaymentSerializer, WalletSerializer, WalletTransactionSerializer, RefundSerializer
 )
 
 class InitiatePaymentView(APIView):
@@ -152,7 +152,7 @@ class PaymentWebhookView(APIView):
                 if available_pros.exists():
                     # Take the first available pro (In prod: calculate nearest by lat/lng)
                     assigned_pro = available_pros.first()
-                    booking.professional = assigned_pro.user
+                    booking.assigned_professional = assigned_pro
                     booking.status = 'ASSIGNED'
                     booking.save()
                     
@@ -161,7 +161,8 @@ class PaymentWebhookView(APIView):
                     
                     # Fire Push Notification
                     if firebase_admin._apps:
-                        fcm_token = getattr(assigned_pro.user, 'fcm_token', None)
+                        device = assigned_pro.user.devices.filter(is_active=True).exclude(fcm_token__isnull=True).exclude(fcm_token='').first()
+                        fcm_token = device.fcm_token if device else None
                         if fcm_token:
                             msg = messaging.Message(
                                 notification=messaging.Notification(
@@ -209,3 +210,60 @@ class WalletTransactionListView(generics.ListAPIView):
         else:
             wallet, created = Wallet.objects.get_or_create(user=self.request.user)
         return WalletTransaction.objects.filter(wallet=wallet)
+
+
+class RefundListView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = RefundSerializer
+    
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff or user.is_superuser or (user.role and user.role.name in ['ADMIN', 'SUPER_ADMIN', 'FINANCE', 'OPERATIONS_MANAGER']):
+            return Refund.objects.all().order_by('-created_at')
+        return Refund.objects.filter(payment__user=user).order_by('-created_at')
+
+
+class RefundProcessView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, id):
+        user = request.user
+        if not (user.is_staff or user.is_superuser or (user.role and user.role.name in ['ADMIN', 'SUPER_ADMIN', 'FINANCE', 'OPERATIONS_MANAGER'])):
+            return Response({"success": False, "error": "Unauthorized: Finance or Admin permission required."}, status=status.HTTP_403_FORBIDDEN)
+        
+        with transaction.atomic():
+            try:
+                refund = Refund.objects.select_for_update().get(id=id)
+            except Refund.DoesNotExist:
+                return Response({"success": False, "error": "Refund record not found."}, status=status.HTTP_404_NOT_FOUND)
+            
+            if refund.status == 'PROCESSED':
+                return Response({"success": True, "message": "Refund already processed.", "data": RefundSerializer(refund).data})
+            
+            refund.status = 'PROCESSED'
+            refund.provider_refund_id = f"rfnd_{uuid.uuid4().hex[:12]}"
+            refund.save(update_fields=['status', 'provider_refund_id'])
+            
+            # Update Payment status
+            payment = refund.payment
+            payment.status = 'REFUNDED'
+            payment.save(update_fields=['status', 'updated_at'])
+            
+            # If Escrow was held, mark as REFUNDED
+            from .models import EscrowLedger
+            EscrowLedger.objects.filter(payment=payment, status='HELD').update(status='REFUNDED')
+            
+            # Credit customer wallet if desired or log transaction
+            customer_wallet, _ = Wallet.objects.select_for_update().get_or_create(user=payment.user)
+            WalletTransaction.objects.create(
+                wallet=customer_wallet,
+                transaction_type='CREDIT',
+                amount=refund.amount,
+                reference_id=str(refund.id),
+                description=f"Escrow Refund for Booking #{str(payment.booking.id)[:8].upper()}"
+            )
+            customer_wallet.balance += refund.amount
+            customer_wallet.save(update_fields=['balance', 'updated_at'])
+            
+            return Response({"success": True, "data": RefundSerializer(refund).data})
+

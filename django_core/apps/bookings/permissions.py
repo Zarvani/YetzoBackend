@@ -9,8 +9,10 @@ class IsBookingParticipantOrAdmin(permissions.BasePermission):
     to view or modify it.
     """
     def has_object_permission(self, request, view, obj):
-        # Allow admins or dispatchers
-        if request.user.role and request.user.role.name in ['ADMIN', 'DISPATCHER']:
+        # Allow superusers, staff, admins, or dispatchers
+        if request.user.is_staff or request.user.is_superuser:
+            return True
+        if request.user.role and request.user.role.name in ['ADMIN', 'SUPER_ADMIN', 'OPERATIONS_MANAGER', 'DISPATCHER']:
             return True
             
         # Allow the customer who created it
@@ -18,7 +20,7 @@ class IsBookingParticipantOrAdmin(permissions.BasePermission):
             return True
             
         # Allow the assigned professional
-        if obj.professional == request.user:
+        if obj.assigned_professional and obj.assigned_professional.user == request.user:
             return True
             
         return False

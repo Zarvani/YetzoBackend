@@ -21,6 +21,8 @@ class Booking(models.Model):
         ('PAUSED', 'Paused'),
         ('COMPLETED', 'Completed'),
         ('CANCELLED', 'Cancelled'),
+        ('REJECTED', 'Rejected'),
+        ('TIMEOUT', 'Timeout'),
         ('FAILED', 'Failed'),
         ('REFUNDED', 'Refunded'),
         ('NO_SHOW', 'No Show'),
