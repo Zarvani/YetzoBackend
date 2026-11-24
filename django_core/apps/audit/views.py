@@ -8,8 +8,9 @@ class AuditLogListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        if self.request.user.role and self.request.user.role.name in ['ADMIN']:
-            return AuditLog.objects.all().order_by('-created_at')
+        u = self.request.user
+        if u.is_staff or u.is_superuser or (u.role and u.role.name in ['ADMIN', 'OPERATIONS_MANAGER']):
+            return AuditLog.objects.select_related('user').all().order_by('-created_at')[:200]
         return AuditLog.objects.none()
 
 

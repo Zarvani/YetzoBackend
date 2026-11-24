@@ -31,18 +31,23 @@ class InitiatePaymentView(APIView):
         # Initialize Razorpay Client
         razorpay_key_id = os.environ.get('RAZORPAY_KEY_ID')
         razorpay_key_secret = os.environ.get('RAZORPAY_KEY_SECRET')
-        client = razorpay.Client(auth=(razorpay_key_id, razorpay_key_secret))
         
         # Create Razorpay Order (amount is in paise)
         order_amount = int(booking.total_amount * 100)
         order_currency = 'INR'
         order_receipt = f"receipt_{booking.booking_reference}"
         
-        try:
-            razorpay_order = client.order.create(dict(amount=order_amount, currency=order_currency, receipt=order_receipt))
-            provider_order_id = razorpay_order['id']
-        except Exception as e:
-            return Response({"success": False, "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        if razorpay_key_id and razorpay_key_secret:
+            try:
+                client = razorpay.Client(auth=(razorpay_key_id, razorpay_key_secret))
+                razorpay_order = client.order.create(dict(amount=order_amount, currency=order_currency, receipt=order_receipt))
+                provider_order_id = razorpay_order['id']
+            except Exception as e:
+                return Response({"success": False, "error": f"Payment gateway error: {str(e)}"}, status=status.HTTP_502_BAD_GATEWAY)
+        else:
+            # Safe sandbox fallback for testing when live keys are pending
+            provider_order_id = f"order_sim_{uuid.uuid4().hex[:14]}"
+            razorpay_key_id = "rzp_test_simulated"
         
         payment = Payment.objects.create(
             booking=booking,
@@ -190,11 +195,14 @@ class WalletView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        if hasattr(request.user, 'role') and request.user.role and request.user.role.name == 'PROFESSIONAL':
-            profile = request.user.professional_profile
-            wallet, created = Wallet.objects.get_or_create(professional=profile)
+        if hasattr(request.user, 'role') and request.user.role and request.user.role.name in ['PROFESSIONAL', 'PARTNER']:
+            profile = getattr(request.user, 'professional_profile', None)
+            if profile:
+                wallet, _ = Wallet.objects.get_or_create(professional=profile)
+            else:
+                wallet, _ = Wallet.objects.get_or_create(user=request.user)
         else:
-            wallet, created = Wallet.objects.get_or_create(user=request.user)
+            wallet, _ = Wallet.objects.get_or_create(user=request.user)
         serializer = WalletSerializer(wallet)
         return Response({"success": True, "data": serializer.data})
 
@@ -204,11 +212,14 @@ class WalletTransactionListView(generics.ListAPIView):
     serializer_class = WalletTransactionSerializer
     
     def get_queryset(self):
-        if hasattr(self.request.user, 'role') and self.request.user.role and self.request.user.role.name == 'PROFESSIONAL':
-            profile = self.request.user.professional_profile
-            wallet, created = Wallet.objects.get_or_create(professional=profile)
+        if hasattr(self.request.user, 'role') and self.request.user.role and self.request.user.role.name in ['PROFESSIONAL', 'PARTNER']:
+            profile = getattr(self.request.user, 'professional_profile', None)
+            if profile:
+                wallet, _ = Wallet.objects.get_or_create(professional=profile)
+            else:
+                wallet, _ = Wallet.objects.get_or_create(user=self.request.user)
         else:
-            wallet, created = Wallet.objects.get_or_create(user=self.request.user)
+            wallet, _ = Wallet.objects.get_or_create(user=self.request.user)
         return WalletTransaction.objects.filter(wallet=wallet)
 
 

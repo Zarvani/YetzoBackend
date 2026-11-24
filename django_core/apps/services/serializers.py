@@ -45,7 +45,13 @@ class ServiceQuestionSerializer(serializers.ModelSerializer):
 
 class ServiceSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
+    category_id = serializers.PrimaryKeyRelatedField(
+        queryset=Category.objects.all(), source='category', write_only=True, required=False
+    )
     subcategory = SubcategorySerializer(read_only=True)
+    subcategory_id = serializers.PrimaryKeyRelatedField(
+        queryset=Subcategory.objects.all(), source='subcategory', write_only=True, required=False, allow_null=True
+    )
     variants = ServiceVariantSerializer(many=True, read_only=True)
     addons = ServiceAddonSerializer(many=True, read_only=True)
     pricing_rules = ServicePricingRuleSerializer(many=True, read_only=True)

@@ -29,12 +29,15 @@ class BookingListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        if request.user.role and request.user.role.name in ['ADMIN', 'DISPATCHER']:
-            bookings = Booking.objects.all().order_by('-created_at')
-        elif request.user.role and request.user.role.name == 'PROFESSIONAL':
-            bookings = Booking.objects.filter(assigned_professional__user=request.user).order_by('-created_at')
+        base_qs = Booking.objects.select_related(
+            'customer', 'service', 'assigned_professional', 'assigned_professional__user', 'address'
+        )
+        if request.user.role and request.user.role.name in ['ADMIN', 'DISPATCHER', 'OPERATIONS_MANAGER']:
+            bookings = base_qs.all().order_by('-created_at')
+        elif request.user.role and request.user.role.name in ['PROFESSIONAL', 'PARTNER']:
+            bookings = base_qs.filter(assigned_professional__user=request.user).order_by('-created_at')
         else:
-            bookings = Booking.objects.filter(customer=request.user).order_by('-created_at')
+            bookings = base_qs.filter(customer=request.user).order_by('-created_at')
         serializer = BookingSerializer(bookings, many=True)
         return Response({"success": True, "data": serializer.data})
 
@@ -168,7 +171,9 @@ class BookingListCreateView(APIView):
 class BookingDetailView(generics.RetrieveAPIView):
     permission_classes = [IsAuthenticated, IsBookingParticipantOrAdmin]
     serializer_class = BookingSerializer
-    queryset = Booking.objects.all()
+    queryset = Booking.objects.select_related(
+        'customer', 'service', 'assigned_professional', 'assigned_professional__user', 'address'
+    ).all()
     lookup_field = 'id'
 
 

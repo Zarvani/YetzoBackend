@@ -3,9 +3,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
 from django.shortcuts import get_object_or_404
-from .models import Category, Service, ServiceQuestion, ServiceAvailability
+from .models import Category, Subcategory, Service, ServiceQuestion, ServiceAvailability
 from .serializers import (
-    CategorySerializer, ServiceSerializer, ServiceQuestionSerializer
+    CategorySerializer, SubcategorySerializer, ServiceSerializer, ServiceQuestionSerializer
 )
 from apps.locations.models import City, Zone
 from rest_framework.permissions import IsAuthenticated
@@ -21,8 +21,9 @@ class AdminServiceListCreateView(generics.ListCreateAPIView):
     serializer_class = ServiceSerializer
     
     def get_queryset(self):
-        if self.request.user.role and self.request.user.role.name == 'ADMIN':
-            return Service.objects.all().order_by('-created_at')
+        u = self.request.user
+        if u.is_staff or u.is_superuser or (hasattr(u, 'role') and u.role and u.role.name in ['ADMIN', 'OPERATIONS_MANAGER']):
+            return Service.objects.select_related('category', 'subcategory').prefetch_related('variants', 'addons', 'pricing_rules').order_by('-created_at')
         return Service.objects.none()
 
 class AdminServiceDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -31,8 +32,9 @@ class AdminServiceDetailView(generics.RetrieveUpdateDestroyAPIView):
     lookup_field = 'id'
     
     def get_queryset(self):
-        if self.request.user.role and self.request.user.role.name == 'ADMIN':
-            return Service.objects.all()
+        u = self.request.user
+        if u.is_staff or u.is_superuser or (hasattr(u, 'role') and u.role and u.role.name in ['ADMIN', 'OPERATIONS_MANAGER']):
+            return Service.objects.select_related('category', 'subcategory').prefetch_related('variants', 'addons', 'pricing_rules')
         return Service.objects.none()
 
 class CategoryListView(generics.ListAPIView):
@@ -46,7 +48,25 @@ class CategoryDetailView(generics.RetrieveAPIView):
     permission_classes = [AllowAny]
     serializer_class = CategorySerializer
     queryset = Category.objects.filter(is_active=True)
-    lookup_field = 'slug'
+
+    def get_object(self):
+        lookup = self.kwargs.get('slug') or self.kwargs.get('id')
+        try:
+            return Category.objects.get(id=lookup, is_active=True)
+        except (Category.DoesNotExist, ValueError, Exception):
+            return get_object_or_404(Category.objects.filter(is_active=True), slug=lookup)
+
+class SubcategoryListView(generics.ListAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = SubcategorySerializer
+
+    def get_queryset(self):
+        cat_id = self.kwargs.get('category_id') or self.kwargs.get('category_slug')
+        qs = Subcategory.objects.filter(is_active=True)
+        if cat_id:
+            from django.db.models import Q
+            qs = qs.filter(Q(category_id=cat_id) | Q(category__slug=cat_id))
+        return qs
 
 class ServiceListView(generics.ListAPIView):
     permission_classes = [AllowAny]
@@ -73,10 +93,15 @@ class ServiceListView(generics.ListAPIView):
                 ).exclude(status='ARCHIVED')
         else:
             # Fallback to standard DB if no search term provided
-            queryset = Service.objects.exclude(status='ARCHIVED')
+            queryset = Service.objects.exclude(status='ARCHIVED').select_related('category', 'subcategory').prefetch_related('variants', 'addons', 'pricing_rules').order_by('name')
             
         if category_slug:
             queryset = queryset.filter(category__slug=category_slug)
+
+        sub_category = self.request.query_params.get('sub_category', None)
+        if sub_category:
+            from django.db.models import Q
+            queryset = queryset.filter(Q(subcategory_id=sub_category) | Q(subcategory__slug=sub_category))
             
         return queryset
 
@@ -84,7 +109,13 @@ class ServiceDetailView(generics.RetrieveAPIView):
     permission_classes = [AllowAny]
     serializer_class = ServiceSerializer
     queryset = Service.objects.exclude(status='ARCHIVED')
-    lookup_field = 'slug'
+
+    def get_object(self):
+        lookup = self.kwargs.get('slug') or self.kwargs.get('id')
+        try:
+            return Service.objects.exclude(status='ARCHIVED').get(id=lookup)
+        except (Service.DoesNotExist, ValueError, Exception):
+            return get_object_or_404(Service.objects.exclude(status='ARCHIVED'), slug=lookup)
 
 class ServiceQuestionsView(generics.ListAPIView):
     permission_classes = [AllowAny]

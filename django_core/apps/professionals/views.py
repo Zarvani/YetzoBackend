@@ -76,7 +76,9 @@ class ProfessionalPendingJobsView(APIView):
 
     def get(self, request):
         profile, _ = ProfessionalProfile.objects.get_or_create(user=request.user)
-        pending_bookings = Booking.objects.filter(assigned_professional=profile, status='ASSIGNED').order_by('-created_at')
+        pending_bookings = Booking.objects.select_related(
+            'customer', 'service', 'address'
+        ).filter(assigned_professional=profile, status='ASSIGNED').order_by('-created_at')
         serializer = BookingSerializer(pending_bookings, many=True)
         return Response({"success": True, "data": serializer.data})
 
@@ -87,7 +89,9 @@ class ProfessionalActiveJobsView(APIView):
     def get(self, request):
         profile, _ = ProfessionalProfile.objects.get_or_create(user=request.user)
         active_statuses = ['ACCEPTED', 'ON_THE_WAY', 'ARRIVED', 'OTP_VERIFIED', 'IN_PROGRESS']
-        active_bookings = Booking.objects.filter(assigned_professional=profile, status__in=active_statuses).order_by('-created_at')
+        active_bookings = Booking.objects.select_related(
+            'customer', 'service', 'address'
+        ).filter(assigned_professional=profile, status__in=active_statuses).order_by('-created_at')
         serializer = BookingSerializer(active_bookings, many=True)
         return Response({"success": True, "data": serializer.data})
 
@@ -117,12 +121,13 @@ class ProfessionalAvailabilityView(generics.RetrieveUpdateAPIView):
 class AdminProfessionalListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ProfessionalProfileSerializer
-    queryset = ProfessionalProfile.objects.all().order_by('-created_at')
+    queryset = ProfessionalProfile.objects.select_related('user').prefetch_related('skills', 'skills__service').all().order_by('-created_at')
 
 
 class AdminProfessionalDetailView(generics.RetrieveUpdateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ProfessionalProfileSerializer
+    queryset = ProfessionalProfile.objects.select_related('user').prefetch_related('skills', 'skills__service').all()
     queryset = ProfessionalProfile.objects.all()
     lookup_field = 'id'
 

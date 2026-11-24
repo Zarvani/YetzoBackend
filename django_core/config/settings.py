@@ -47,13 +47,17 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'unsafe-default-secret-key-do-not-use-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
+_env_hosts = os.environ.get('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
+ALLOWED_HOSTS = list(set([h.strip() for h in _env_hosts if h.strip()] + ['127.0.0.1', 'localhost', 'testserver']))
 
 CORS_ALLOW_ALL_ORIGINS = DEBUG  # Only allow all in dev
+_extra_cors = [o.strip() for o in os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',') if o.strip()]
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-]
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+] + _extra_cors
 
 
 # Application definition
@@ -249,4 +253,18 @@ CLOUDINARY_STORAGE = {
 
 if os.environ.get('CLOUDINARY_CLOUD_NAME'):
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
+# Production Security & SSL Settings
+if not DEBUG:
+    SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'True').lower() == 'true'
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+    SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', 31536000))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 

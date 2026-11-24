@@ -20,7 +20,7 @@ class RoleDetailView(generics.RetrieveUpdateDestroyAPIView):
 class UserAdminListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = UserAdminSerializer
-    queryset = User.objects.all().order_by('-date_joined')
+    queryset = User.objects.select_related('role').all().order_by('-date_joined')
 
 class UpdateFCMTokenView(APIView):
     permission_classes = [IsAuthenticated]
