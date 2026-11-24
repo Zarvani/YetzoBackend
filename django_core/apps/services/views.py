@@ -42,7 +42,19 @@ class CategoryListView(generics.ListAPIView):
     serializer_class = CategorySerializer
     
     def get_queryset(self):
-        return Category.objects.filter(is_active=True)
+        return Category.objects.filter(is_active=True).order_by('sort_order', 'name')
+
+    def list(self, request, *args, **kwargs):
+        from django.core.cache import cache
+        cache_key = "yetzo_active_categories_v1"
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return Response(cached_data)
+        
+        response = super().list(request, *args, **kwargs)
+        if response.status_code == 200:
+            cache.set(cache_key, response.data, timeout=3600)
+        return response
 
 class CategoryDetailView(generics.RetrieveAPIView):
     permission_classes = [AllowAny]

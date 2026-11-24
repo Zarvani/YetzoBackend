@@ -57,7 +57,19 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
+    "https://yetzo.com",
+    "https://www.yetzo.com",
+    "https://sak.yetzo.com",
 ] + _extra_cors
+
+_csrf_origins = [o.strip() for o in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',') if o.strip()]
+CSRF_TRUSTED_ORIGINS = [
+    "https://yetzo.com",
+    "https://www.yetzo.com",
+    "https://sak.yetzo.com",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+] + _csrf_origins
 
 
 # Application definition
@@ -99,6 +111,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'django.middleware.gzip.GZipMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',  # Added CORS Middleware
     'django.middleware.common.CommonMiddleware',
