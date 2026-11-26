@@ -88,7 +88,7 @@ class BookingListCreateView(APIView):
                 
                 subtotal = base_price + addons_price
                 
-                # 2. Pronto Task Stacking Discount (15% if 2+ chores stacked)
+                # 2. Yetzo Task Stacking Discount (15% if 2+ chores stacked)
                 discount = 0.00
                 if len(items_data) >= 2:
                     discount += subtotal * 0.15

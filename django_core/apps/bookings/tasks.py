@@ -22,7 +22,7 @@ def calculate_haversine_distance(lat1, lon1, lat2, lon2):
 @shared_task
 def dispatch_booking_to_professionals(booking_id):
     """
-    Yetzo Production Pronto-Style Dispatch Algorithm:
+    Yetzo Production 15-Min Instant Dispatch Algorithm:
     - Atomically locks booking and candidate records to prevent race conditions.
     - Anti-collision: Excludes pros already assigned to active jobs.
     - Anti-spam: Excludes pros who previously declined or timed out on this booking.

@@ -39,6 +39,7 @@ class AdminServiceDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class CategoryListView(generics.ListAPIView):
     permission_classes = [AllowAny]
+    throttle_classes = []
     serializer_class = CategorySerializer
     
     def get_queryset(self):
@@ -82,6 +83,7 @@ class SubcategoryListView(generics.ListAPIView):
 
 class ServiceListView(generics.ListAPIView):
     permission_classes = [AllowAny]
+    throttle_classes = []
     serializer_class = ServiceSerializer
     
     def get_queryset(self):
@@ -119,6 +121,7 @@ class ServiceListView(generics.ListAPIView):
 
 class ServiceDetailView(generics.RetrieveAPIView):
     permission_classes = [AllowAny]
+    throttle_classes = []
     serializer_class = ServiceSerializer
     queryset = Service.objects.exclude(status='ARCHIVED')
 

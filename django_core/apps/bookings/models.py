@@ -39,7 +39,7 @@ class Booking(models.Model):
     scheduled_date = models.DateField(null=True, blank=True)
     scheduled_time = models.TimeField(null=True, blank=True)
     is_instant = models.BooleanField(default=False)
-    is_verified_session = models.BooleanField(default=False, help_text="Yetzo/Pronto Verified: Encrypted bodycam session recording")
+    is_verified_session = models.BooleanField(default=False, help_text="Yetzo Verified: Encrypted bodycam session recording")
     cancellation_reason = models.TextField(blank=True, null=True)
     
     # Location

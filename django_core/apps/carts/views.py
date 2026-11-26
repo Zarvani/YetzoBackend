@@ -25,7 +25,7 @@ def recalculate_cart(cart):
     items = cart.items.all()
     subtotal = sum(item.total_price for item in items)
     
-    # 1. Multi-chore stacking bundle discount (Pronto style):
+    # 1. Multi-chore stacking bundle discount (Yetzo style):
     # 10% discount when 2 or more chores are stacked in a single visit
     chore_discount = 0
     if items.count() >= 2:
