@@ -239,17 +239,33 @@ class BookingStatusUpdateView(APIView):
                         # Reserved for cancellation fee deduction
                         pass
                         
-            # Job Start OTP Verification Logic
+            # Job Start OTP & Pre-service Evidence Logic
             if new_status == 'IN_PROGRESS' and old_status == 'ARRIVED':
                 provided_otp = request.data.get('start_otp')
                 if not provided_otp or str(provided_otp) != str(booking.start_otp):
                     return Response({"success": False, "error": "Invalid or missing Start OTP."}, status=status.HTTP_400_BAD_REQUEST)
+                # Enterprise Quality Gate: Record initial inspection/photo if provided
+                before_photo = request.data.get('before_service_photo') or request.data.get('before_photo')
+                if before_photo:
+                    booking.metadata = booking.metadata or {}
+                    booking.metadata['before_service_photo'] = before_photo
                     
-            # Job End OTP & Escrow Release Logic (Atomic)
+            # Job End OTP & Escrow Release Logic (Atomic Quality Gate)
             if new_status == 'COMPLETED' and old_status == 'IN_PROGRESS':
                 provided_otp = request.data.get('end_otp')
                 if not provided_otp or str(provided_otp) != str(booking.end_otp):
                     return Response({"success": False, "error": "Invalid or missing End OTP."}, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Enterprise Quality Gate: Mandatory post-service completion photo proof
+                after_photo = request.data.get('after_service_photo') or request.data.get('after_photo')
+                if not after_photo and not request.user.is_staff:
+                    return Response({
+                        "success": False, 
+                        "error": "Mandatory completion photo proof required before closing booking."
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                if after_photo:
+                    booking.metadata = booking.metadata or {}
+                    booking.metadata['after_service_photo'] = after_photo
                 
                 # Release Escrow logic
                 from apps.payments.models import EscrowLedger, Wallet, WalletTransaction
