@@ -62,9 +62,12 @@ class ProfessionalPayoutRequestView(APIView):
         razorpay_key_secret = os.environ.get('RAZORPAY_KEY_SECRET')
         client = razorpay.Client(auth=(razorpay_key_id, razorpay_key_secret))
         
-        # Pro needs a connected Razorpay Linked Account ID. Assuming it's in their profile.
-        # In a real scenario, this is fetched from a linked_account model. We'll simulate the call.
-        linked_account_id = getattr(profile, 'razorpay_account_id', 'acc_dummy1234')
+        linked_account_id = getattr(profile, 'razorpay_account_id', None)
+        if not linked_account_id:
+            return Response(
+                {"error": "Professional has no linked bank account or Razorpay Account ID configured."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
         try:
             # Create a Transfer via Razorpay Route (from platform balance to Pro's linked account)
